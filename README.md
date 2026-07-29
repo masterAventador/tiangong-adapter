@@ -94,6 +94,12 @@ docker compose \
 首次启动后，天工会默认使用 `qwen3-coder-plus`。当代理判断需要生图时，会通过
 Open Design 的 `custom-image` 媒体能力调用内部适配器。
 
+生产域名预设为 `https://tiangong.xuanbai.tech`。仓库中的
+`deploy/nginx/tiangong.xuanbai.tech.conf` 是统一登录接入前使用的封闭入口：
+HTTPS 和证书可以提前准备，但所有产品请求固定返回 `503`，不会代理到 Open Design。
+统一登录接入完成后，应以认证网关配置替换该文件，不能直接把公网请求转发到
+`127.0.0.1:7456`。
+
 ### 无密钥模板版本
 
 仓库提供的 `compose.example.yaml` 同时声明 Open Design 和适配器，但不会修改
