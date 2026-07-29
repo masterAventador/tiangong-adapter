@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile.tiangong
       args:
-        OPEN_DESIGN_IMAGE: ${OPEN_DESIGN_IMAGE:-ghcr.io/nexu-io/od:latest}
+        OPEN_DESIGN_IMAGE: ${OPEN_DESIGN_IMAGE:?OPEN_DESIGN_IMAGE is required}
         QWEN_CODE_VERSION: ${QWEN_CODE_VERSION:-0.18.0}
     command:
       - node

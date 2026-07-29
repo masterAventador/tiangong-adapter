@@ -1,5 +1,5 @@
 ARG NODE_IMAGE=docker.io/library/node:24-alpine
-ARG OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest
+ARG OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od@sha256:eb1c9d55532ffd2088a4a71951cffd273dff65e96e077bcef8c8bac3a6e1f1a1
 
 FROM ${NODE_IMAGE} AS bootstrap-build
 

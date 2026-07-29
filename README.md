@@ -85,7 +85,7 @@ docker compose \
 
 这个配置会：
 
-1. 基于官方 Open Design 镜像安装固定版本的 Qwen Code；
+1. 基于已锁定 digest 的官方 Open Design 镜像安装固定版本的 Qwen Code；
 2. 初始化数据卷中的 Qwen、代理和图片提供商配置；
 3. 启动内部 Wan 2.7 适配器；
 4. 只把 Open Design 的 `7456` 端口绑定到主机回环地址；
@@ -200,5 +200,5 @@ Content-Type: application/json
   `.env.tiangong` 是仓库所有者明确要求的例外，并且仓库必须始终保持私有。
 - 不要将适配器直接暴露到公网。
 - Open Design 仍应通过 HTTPS、反向代理鉴权和 `OD_API_TOKEN` 保护。
-- Compose 示例使用 `latest` 便于初次试用；正式环境应把 Open Design 镜像固定到
-  明确版本或 digest，升级时再主动修改。
+- 已配置版本通过 `.env.tiangong` 固定 Open Design 镜像 digest；只有主动修改该值
+  才会升级 Open Design。
