@@ -1,0 +1,82 @@
+name: tiangong
+
+services:
+  tiangong-bootstrap:
+    image: tiangong-open-design:local
+    build:
+      context: .
+      dockerfile: Dockerfile.tiangong
+      args:
+        OPEN_DESIGN_IMAGE: ${OPEN_DESIGN_IMAGE:-ghcr.io/nexu-io/od:latest}
+        QWEN_CODE_VERSION: ${QWEN_CODE_VERSION:-0.18.0}
+    command:
+      - node
+      - /opt/tiangong/bootstrap.js
+    environment:
+      TIANGONG_DATA_DIR: /app/.od
+      TIANGONG_IMAGE_ADAPTER_BASE_URL: http://wan-image-adapter:8080/v1
+      TIANGONG_IMAGE_MODEL: wan2.7-image
+      TIANGONG_QWEN_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+      TIANGONG_QWEN_MODEL: qwen3-coder-plus
+    volumes:
+      - open_design_data:/app/.od
+    restart: "no"
+
+  open-design:
+    image: tiangong-open-design:local
+    restart: unless-stopped
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      HOME: /app/.od/qwen-home
+      NODE_ENV: production
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=512}
+      OD_API_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
+      OD_ALLOWED_ORIGINS: ${OPEN_DESIGN_ALLOWED_ORIGINS:-}
+      OD_BIND_HOST: 0.0.0.0
+      OD_CUSTOM_IMAGE_API_KEY: ${ADAPTER_API_KEY:?ADAPTER_API_KEY is required}
+      OD_PORT: 7456
+      OD_WEB_PORT: 7456
+    ports:
+      - "127.0.0.1:${OPEN_DESIGN_PORT:-7456}:7456"
+    volumes:
+      - open_design_data:/app/.od
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${OPEN_DESIGN_MEM_LIMIT:-1g}
+    pids_limit: 256
+    depends_on:
+      tiangong-bootstrap:
+        condition: service_completed_successfully
+      wan-image-adapter:
+        condition: service_healthy
+
+  wan-image-adapter:
+    image: tiangong-wan-image-adapter:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      ADAPTER_API_KEY: ${ADAPTER_API_KEY:?ADAPTER_API_KEY is required}
+      ALLOWED_MODELS: wan2.7-image
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:-https://dashscope.aliyuncs.com}
+      HOST: 0.0.0.0
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-31457280}
+      PORT: 8080
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-180000}
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 64
+
+volumes:
+  open_design_data:

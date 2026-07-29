@@ -5,6 +5,16 @@
 
 默认模型固定为 `wan2.7-image`。升级 Open Design 时不需要合并本仓库的代码。
 
+本仓库还提供 `compose.tiangong.yaml`，它会在官方 Open Design 镜像外再加一层
+Qwen Code 运行时，并在首次启动时预置：
+
+- 默认代理：Qwen Code
+- 默认文本模型：`qwen3-coder-plus`
+- 默认图片模型：`custom-image`
+- 下游图片模型：`wan2.7-image`
+
+文本和图片共用同一个百炼 API Key。
+
 ## 调用链
 
 ```text
@@ -44,11 +54,12 @@ cp .env.example .env
 | --- | --- |
 | `ADAPTER_API_KEY` | Open Design 到适配器的内部令牌，建议用 `openssl rand -hex 32` 生成 |
 | `DASHSCOPE_API_KEY` | 阿里云百炼 API Key |
-| `DASHSCOPE_BASE_URL` | 百炼业务空间专属域名 |
+| `DASHSCOPE_BASE_URL` | 百炼 API 基础地址，可用公共域名或业务空间专属域名 |
 
 `DASHSCOPE_BASE_URL` 示例：
 
 ```text
+https://dashscope.aliyuncs.com
 https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com
 ```
 
@@ -56,6 +67,34 @@ https://<WorkspaceId>.cn-beijing.maas.aliyuncs.com
 [万相 2.7 图像生成与编辑 API](https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference)。
 
 ## 与天工一起用 Docker Compose 启动
+
+### 已配置版本
+
+仓库所有者明确要求把百炼 Key 纳入私有 Git，以便跨设备直接部署。因此
+`.env.tiangong` 是一个有意跟踪的私密配置文件。只要仓库成员或可见性发生变化，
+就必须先轮换其中的百炼 Key、适配器令牌和 Open Design API 令牌。
+
+克隆私有仓库后直接运行：
+
+```bash
+docker compose \
+  --env-file .env.tiangong \
+  -f compose.tiangong.yaml \
+  up --build
+```
+
+这个配置会：
+
+1. 基于官方 Open Design 镜像安装固定版本的 Qwen Code；
+2. 初始化数据卷中的 Qwen、代理和图片提供商配置；
+3. 启动内部 Wan 2.7 适配器；
+4. 只把 Open Design 的 `7456` 端口绑定到主机回环地址；
+5. 把同一把百炼 Key 同时交给 Qwen 文本模型和 Wan 图片模型。
+
+首次启动后，天工会默认使用 `qwen3-coder-plus`。当代理判断需要生图时，会通过
+Open Design 的 `custom-image` 媒体能力调用内部适配器。
+
+### 无密钥模板版本
 
 仓库提供的 `compose.example.yaml` 同时声明 Open Design 和适配器，但不会修改
 Open Design 镜像。准备 `.env` 后运行：
@@ -157,7 +196,8 @@ Content-Type: application/json
 
 ## 安全边界
 
-- 不要把 `.env`、百炼 Key 或内部令牌提交到 Git。
+- 常规部署不要把 `.env`、百炼 Key或内部令牌提交到 Git；本仓库中的
+  `.env.tiangong` 是仓库所有者明确要求的例外，并且仓库必须始终保持私有。
 - 不要将适配器直接暴露到公网。
 - Open Design 仍应通过 HTTPS、反向代理鉴权和 `OD_API_TOKEN` 保护。
 - Compose 示例使用 `latest` 便于初次试用；正式环境应把 Open Design 镜像固定到

@@ -1,0 +1,24 @@
+ARG NODE_IMAGE=docker.io/library/node:24-alpine
+ARG OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest
+
+FROM ${NODE_IMAGE} AS bootstrap-build
+
+WORKDIR /build
+COPY package.json package-lock.json tsconfig.json ./
+COPY src ./src
+COPY tests ./tests
+RUN npm ci && npm test
+
+FROM ${OPEN_DESIGN_IMAGE}
+
+ARG QWEN_CODE_VERSION=0.18.0
+
+USER root
+RUN npm install --global "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
+    && qwen --version
+
+COPY --from=bootstrap-build \
+  /build/dist/src/bootstrap.js \
+  /opt/tiangong/bootstrap.js
+
+USER open-design
