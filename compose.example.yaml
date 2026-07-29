@@ -1,0 +1,54 @@
+name: tiangong
+
+services:
+  open-design:
+    image: ${OPEN_DESIGN_IMAGE:-ghcr.io/nexu-io/od:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=512}
+      OD_BIND_HOST: 0.0.0.0
+      OD_ALLOWED_ORIGINS: ${OPEN_DESIGN_ALLOWED_ORIGINS:-}
+      OD_PORT: 7456
+      OD_WEB_PORT: 7456
+      OD_API_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
+    ports:
+      - "127.0.0.1:${OPEN_DESIGN_PORT:-7456}:7456"
+    volumes:
+      - open_design_data:/app/.od
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${OPEN_DESIGN_MEM_LIMIT:-1g}
+    pids_limit: 256
+    depends_on:
+      wan-image-adapter:
+        condition: service_healthy
+
+  wan-image-adapter:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      ADAPTER_API_KEY: ${ADAPTER_API_KEY:?ADAPTER_API_KEY is required}
+      ALLOWED_MODELS: wan2.7-image
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:?DASHSCOPE_BASE_URL is required}
+      HOST: 0.0.0.0
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-31457280}
+      PORT: 8080
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-180000}
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 64
+
+volumes:
+  open_design_data:
