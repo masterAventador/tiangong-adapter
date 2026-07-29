@@ -15,10 +15,28 @@ Qwen Code 运行时，并在首次启动时预置：
 
 文本和图片共用同一个百炼 API Key。
 
+## 天工托管版的组成
+
+Open Design 上游仓库和天工的私有 fork 都不需要修改。托管版由本仓库在构建、启动
+和访问三层完成适配：
+
+1. 基于锁定 digest 的官方镜像构建派生镜像，安装固定版 Qwen Code；
+2. 构建时把用户可见品牌替换为“天工”，删除源码映射，并注入动态界面过滤；
+3. 首次启动时写入 Qwen Code、`qwen3-coder-plus` 和 Wan 2.7 配置；
+4. 通过内部托管网关接收统一登录转发的请求，再由服务端注入 Open Design 令牌。
+
+白标层会隐藏上游官方链接、社交账号、未启用的代理和媒体服务商，以及用户不需要
+看到的第三方实现名称。产品需要真实展示的 `Qwen Code`、`qwen3-coder-plus`、
+`Custom Image API` 和 `wan2.7-image` 保持原名。派生镜像结构发生变化时，构建会
+拒绝继续，以免升级后静默失效。
+
 ## 调用链
 
 ```text
-Open Design
+浏览器
+  → 统一登录
+  → 天工托管网关
+  → Open Design
   → POST /v1/images/generations 或 /v1/images/edits
   → tiangong-wan-adapter
   → 百炼 /api/v1/services/aigc/multimodal-generation/generation
@@ -88,8 +106,9 @@ docker compose \
 1. 基于已锁定 digest 的官方 Open Design 镜像安装固定版本的 Qwen Code；
 2. 初始化数据卷中的 Qwen、代理和图片提供商配置；
 3. 启动内部 Wan 2.7 适配器；
-4. 只把 Open Design 的 `7456` 端口绑定到主机回环地址；
-5. 把同一把百炼 Key 同时交给 Qwen 文本模型和 Wan 图片模型。
+4. 不给 Open Design 容器发布任何主机端口；
+5. 只把托管网关的 `7457` 端口映射到主机回环地址 `127.0.0.1:7456`；
+6. 把同一把百炼 Key 同时交给 Qwen 文本模型和 Wan 图片模型。
 
 首次启动后，天工会默认使用 `qwen3-coder-plus`。当代理判断需要生图时，会通过
 Open Design 的 `custom-image` 媒体能力调用内部适配器。
@@ -99,6 +118,41 @@ Open Design 的 `custom-image` 媒体能力调用内部适配器。
 HTTPS 和证书可以提前准备，但所有产品请求固定返回 `503`，不会代理到 Open Design。
 统一登录接入完成后，应以认证网关配置替换该文件，不能直接把公网请求转发到
 `127.0.0.1:7456`。
+
+### 统一登录接入契约
+
+浏览器不能接触 `OD_API_TOKEN` 或内部网关令牌。统一登录在确认用户身份后，把请求
+转发到 `127.0.0.1:7456`，并在服务端添加：
+
+```text
+X-Tiangong-Gateway-Token: <内部令牌>
+```
+
+托管网关验证这个请求头后，才会向内部 Open Design 注入：
+
+```text
+Authorization: Bearer <OD_API_TOKEN>
+```
+
+公网入口必须覆盖而不是透传浏览器提交的 `X-Tiangong-Gateway-Token`，同时清理
+`Server` 等边缘响应头。没有内部令牌的请求会得到 `401`；Open Design 本身和图片
+适配器都没有公网端口。
+
+`OD_API_TOKEN` 是 Open Design 自身 HTTP API 的服务端访问令牌，不是百炼 Key，
+也不是给前端用户填写的模型 Key。当前 Compose 使用同一个私密值完成统一登录到
+托管网关、托管网关到 Open Design 的两段内部认证。
+
+### 锁定版本
+
+- Open Design：`0.16.1`，镜像 digest
+  `sha256:eb1c9d55532ffd2088a4a71951cffd273dff65e96e077bcef8c8bac3a6e1f1a1`
+- 上游 revision：`276b4d8e970bc143d7ad060181a89a834e3d9caf`
+- Qwen Code：`0.18.0`
+- Nginx：镜像 digest
+  `sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de`
+
+升级 Open Design 时只修改 `.env.tiangong` 中的镜像 digest，再重建派生镜像并运行
+本仓库全部测试；不需要向天工 fork 合并白标或模型适配代码。
 
 ### 无密钥模板版本
 
@@ -149,6 +203,7 @@ curl http://127.0.0.1:8080/health
 ```bash
 npm ci
 npm test
+npm run typecheck
 ```
 
 生产启动：
@@ -157,6 +212,36 @@ npm test
 npm run build
 npm start
 ```
+
+### 本地完整 E2E
+
+完整回归使用本机已安装的 Google Chrome，不需要运行 `playwright install`，也不会
+下载额外 Chromium：
+
+```bash
+docker compose \
+  -p tiangong-e2e \
+  --env-file .env.tiangong \
+  -f compose.tiangong.yaml \
+  -f compose.e2e.yaml \
+  up -d --build
+
+npm run test:e2e
+```
+
+测试完成后关闭隔离栈：
+
+```bash
+docker compose \
+  -p tiangong-e2e \
+  --env-file .env.tiangong \
+  -f compose.tiangong.yaml \
+  -f compose.e2e.yaml \
+  down -v
+```
+
+E2E 使用仅绑定 `127.0.0.1:17456` 的本地统一登录替身，产品镜像和正式部署使用同一
+条代码路径；替身只负责在本机测试中注入内部网关令牌。
 
 ## 接口
 

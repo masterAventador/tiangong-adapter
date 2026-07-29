@@ -1,0 +1,24 @@
+services:
+  acceptance-login:
+    image: tiangong-acceptance-login:local
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+      target: acceptance-login
+      args:
+        NGINX_IMAGE: ${TIANGONG_NGINX_IMAGE:-docker.io/library/nginx@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de}
+    environment:
+      NGINX_ENVSUBST_FILTER: ^(TIANGONG_GATEWAY_TOKEN)$
+      TIANGONG_GATEWAY_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
+    ports:
+      - "127.0.0.1:${TIANGONG_E2E_PORT:-17456}:7458"
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - tiangong-gateway

@@ -5,20 +5,55 @@ FROM ${NODE_IMAGE} AS bootstrap-build
 
 WORKDIR /build
 COPY package.json package-lock.json tsconfig.json ./
+COPY Dockerfile.tiangong ./
+COPY compose.tiangong.yaml ./
+COPY gateway ./gateway
 COPY src ./src
 COPY tests ./tests
 RUN npm ci && npm test
+
+FROM ${OPEN_DESIGN_IMAGE} AS branding-work
+
+USER root
+COPY --from=bootstrap-build \
+  /build/dist/src/branding.js \
+  /opt/tiangong/branding.js
+COPY --from=bootstrap-build \
+  /build/node_modules/typescript \
+  /opt/tiangong/node_modules/typescript
+RUN node --max-old-space-size=1024 /opt/tiangong/branding.js \
+      /app/apps/web/out \
+      /app/apps/web/out \
+      /app/apps/daemon/dist
 
 FROM ${OPEN_DESIGN_IMAGE}
 
 ARG QWEN_CODE_VERSION=0.18.0
 
 USER root
+COPY --from=branding-work --chown=open-design:open-design \
+  /app/apps/web/out \
+  /app/apps/web/out
+COPY --from=branding-work --chown=open-design:open-design \
+  /app/apps/daemon/dist \
+  /app/apps/daemon/dist
 RUN npm install --global "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
-    && qwen --version
+    && qwen --version \
+    && find /app/apps/web/out /app/apps/daemon/dist \
+      -type f -name '*.map' -delete
 
 COPY --from=bootstrap-build \
   /build/dist/src/bootstrap.js \
   /opt/tiangong/bootstrap.js
+
+LABEL org.opencontainers.image.title="tiangong" \
+  org.opencontainers.image.description="天工 AI 设计工作台" \
+  org.opencontainers.image.source="https://tiangong.xuanbai.tech" \
+  org.opencontainers.image.url="https://tiangong.xuanbai.tech" \
+  org.opencontainers.image.version="1.0.0" \
+  org.opencontainers.image.revision="tiangong-1.0.0" \
+  com.docker.compose.project="" \
+  com.docker.compose.service="" \
+  com.docker.compose.version=""
 
 USER open-design

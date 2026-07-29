@@ -11,9 +11,11 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/server.js",
     "test": "npm run build && node --test dist/tests/*.test.js",
+    "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/node": "^24.0.0",
     "typescript": "^5.9.0"
   }

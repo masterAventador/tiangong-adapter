@@ -36,8 +36,8 @@ services:
       OD_CUSTOM_IMAGE_API_KEY: ${ADAPTER_API_KEY:?ADAPTER_API_KEY is required}
       OD_PORT: 7456
       OD_WEB_PORT: 7456
-    ports:
-      - "127.0.0.1:${OPEN_DESIGN_PORT:-7456}:7456"
+    expose:
+      - "7456"
     volumes:
       - open_design_data:/app/.od
     read_only: true
@@ -52,6 +52,34 @@ services:
         condition: service_completed_successfully
       wan-image-adapter:
         condition: service_healthy
+
+  tiangong-gateway:
+    image: tiangong-managed-gateway:local
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+      target: managed-gateway
+      args:
+        NGINX_IMAGE: ${TIANGONG_NGINX_IMAGE:-docker.io/library/nginx@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de}
+    restart: unless-stopped
+    environment:
+      NGINX_ENVSUBST_FILTER: ^(OD_API_TOKEN|TIANGONG_GATEWAY_TOKEN)$
+      OD_API_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
+      TIANGONG_GATEWAY_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
+    ports:
+      - "127.0.0.1:${OPEN_DESIGN_PORT:-7456}:7457"
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    pids_limit: 32
+    depends_on:
+      - open-design
 
   wan-image-adapter:
     image: tiangong-wan-image-adapter:local
