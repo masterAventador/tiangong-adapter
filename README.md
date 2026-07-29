@@ -1,11 +1,14 @@
-# 天工 Wan 2.7 适配器
+# 天工 Open Design 适配层
 
-这是一个独立于 Open Design 源码的轻量服务。它把 Open Design `Custom Image API`
-发出的 OpenAI 风格图片请求，转换为阿里云百炼万相 2.7 的原生同步接口请求。
+这是一个独立于 Open Design 上游源码的天工托管适配层。它通过派生镜像、启动配置
+和统一登录网关，为 Open Design 提供天工品牌白标、Qwen Code 默认运行时以及
+Wan 2.7 生图能力。升级 Open Design 时无需向上游源码合并本仓库代码。
 
-默认模型固定为 `wan2.7-image`。升级 Open Design 时不需要合并本仓库的代码。
+其中的 `wan-image-adapter` 是生图子服务。它把 Open Design `Custom Image API`
+发出的 OpenAI 风格图片请求转换为阿里云百炼万相 2.7 的原生同步接口请求，默认模型
+固定为 `wan2.7-image`。
 
-本仓库还提供 `compose.tiangong.yaml`，它会在官方 Open Design 镜像外再加一层
+`compose.tiangong.yaml` 会启动完整适配层，在官方 Open Design 镜像外增加
 Qwen Code 运行时，并在首次启动时预置：
 
 - 默认代理：Qwen Code
@@ -38,7 +41,7 @@ Open Design 上游仓库和天工的私有 fork 都不需要修改。托管版�
   → 天工托管网关
   → Open Design
   → POST /v1/images/generations 或 /v1/images/edits
-  → tiangong-wan-adapter
+  → wan-image-adapter（生图子服务）
   → 百炼 /api/v1/services/aigc/multimodal-generation/generation
   → OpenAI 风格 { "data": [{ "url": "..." }] }
 ```
@@ -183,11 +186,11 @@ Nginx 暴露适配器端口。
 ## 单独启动适配器
 
 ```bash
-docker build -t tiangong-wan-adapter .
+docker build -t tiangong-wan-image-adapter .
 docker run --rm \
   --env-file .env \
   -p 127.0.0.1:8080:8080 \
-  tiangong-wan-adapter
+  tiangong-wan-image-adapter
 ```
 
 健康检查：

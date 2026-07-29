@@ -21,7 +21,7 @@ const server = createAdapterServer(config);
 
 server.listen(port, host, () => {
   process.stdout.write(
-    `tiangong-wan-adapter listening on http://${host}:${port}; models=${[...config.allowedModels].join(',')}\n`,
+    `tiangong-adapter image service listening on http://${host}:${port}; models=${[...config.allowedModels].join(',')}\n`,
   );
 });
 

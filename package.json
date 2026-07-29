@@ -1,9 +1,9 @@
 {
-  "name": "tiangong-wan-adapter",
+  "name": "tiangong-adapter",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OpenAI-compatible image API adapter for Alibaba Cloud Model Studio Wan 2.7",
+  "description": "Tiangong integration layer for Open Design with managed branding, gateway, defaults, and Wan image support",
   "engines": {
     "node": ">=24"
   },
