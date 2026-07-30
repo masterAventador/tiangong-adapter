@@ -5,8 +5,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY Dockerfile.tiangong compose.tiangong.yaml ./
+COPY Dockerfile.tiangong compose.tiangong.yaml README.md ./
 COPY gateway ./gateway
+COPY login ./login
 COPY tsconfig.json ./
 COPY src ./src
 COPY tests ./tests

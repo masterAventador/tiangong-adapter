@@ -1,0 +1,81 @@
+map $http_x_forwarded_for $tiangong_client_address {
+    default $http_x_forwarded_for;
+    "" $remote_addr;
+}
+
+map $http_x_forwarded_proto $tiangong_forwarded_proto {
+    default $http_x_forwarded_proto;
+    "" $scheme;
+}
+
+server {
+    listen 7458;
+    server_name _;
+    server_tokens off;
+
+    client_max_body_size 64m;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "same-origin" always;
+    add_header Permissions-Policy "camera=(), geolocation=()" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    location = /_auth/verify {
+        internal;
+        proxy_pass http://tiangong-login:8081/_auth/verify;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Cookie $http_cookie;
+        proxy_set_header X-Forwarded-For $tiangong_client_address;
+    }
+
+    location = /login {
+        proxy_pass http://tiangong-login:8081/login$is_args$args;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $tiangong_client_address;
+        proxy_set_header X-Forwarded-Proto $tiangong_forwarded_proto;
+    }
+
+    location = /logout {
+        proxy_pass http://tiangong-login:8081/logout;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $tiangong_client_address;
+        proxy_set_header X-Forwarded-Proto $tiangong_forwarded_proto;
+    }
+
+    location ^~ /api/ {
+        auth_request /_auth/verify;
+        proxy_pass http://tiangong-gateway:7457;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_set_header X-Tiangong-Gateway-Token "${TIANGONG_GATEWAY_TOKEN}";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $tiangong_forwarded_proto;
+        proxy_set_header X-Forwarded-For $tiangong_client_address;
+        proxy_set_header Connection "";
+    }
+
+    location / {
+        auth_request /_auth/verify;
+        error_page 401 =303 /login;
+
+        proxy_pass http://tiangong-gateway:7457;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_set_header X-Tiangong-Gateway-Token "${TIANGONG_GATEWAY_TOKEN}";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $tiangong_forwarded_proto;
+        proxy_set_header X-Forwarded-For $tiangong_client_address;
+        proxy_set_header Connection "";
+    }
+}

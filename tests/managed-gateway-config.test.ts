@@ -38,9 +38,63 @@ test('Compose 不再把 Open Design 直接暴露给主机', async () => {
   assert.doesNotMatch(openDesignSection, /\n    ports:/);
   assert.match(openDesignSection, /\n    expose:\n      - "7456"/);
   assert.ok(gatewaySection);
-  assert.match(gatewaySection, /127\.0\.0\.1:\$\{OPEN_DESIGN_PORT:-7456\}:7457/);
+  assert.doesNotMatch(gatewaySection, /\n    ports:/);
+  assert.match(gatewaySection, /\n    expose:\n      - "7457"/);
   assert.match(gatewaySection, /TIANGONG_GATEWAY_TOKEN/);
   assert.match(gatewaySection, /OD_API_TOKEN/);
+});
+
+test('临时登录入口保护托管网关且只有登录入口绑定主机端口', async () => {
+  const [compose, loginGatewayTemplate] = await Promise.all([
+    readFile(
+      path.join(REPOSITORY_ROOT, 'compose.tiangong.yaml'),
+      'utf8',
+    ),
+    readFile(
+      path.join(REPOSITORY_ROOT, 'login', 'nginx.conf.template'),
+      'utf8',
+    ),
+  ]);
+
+  const managedGatewaySection = compose.match(
+    /\n  tiangong-gateway:\n(?<section>[\s\S]*?)(?=\n  [a-z][a-z0-9-]+:\n|\nvolumes:)/,
+  )?.groups?.section;
+  const loginGatewaySection = compose.match(
+    /\n  tiangong-login-gateway:\n(?<section>[\s\S]*?)(?=\n  [a-z][a-z0-9-]+:\n|\nvolumes:)/,
+  )?.groups?.section;
+  const loginSection = compose.match(
+    /\n  tiangong-login:\n(?<section>[\s\S]*?)(?=\n  [a-z][a-z0-9-]+:\n|\nvolumes:)/,
+  )?.groups?.section;
+
+  assert.ok(managedGatewaySection);
+  assert.doesNotMatch(managedGatewaySection, /\n    ports:/);
+  assert.match(managedGatewaySection, /\n    expose:\n      - "7457"/);
+
+  assert.ok(loginGatewaySection);
+  assert.match(
+    loginGatewaySection,
+    /127\.0\.0\.1:\$\{OPEN_DESIGN_PORT:-7456\}:7458/,
+  );
+  assert.match(loginGatewaySection, /TIANGONG_GATEWAY_TOKEN/);
+
+  assert.ok(loginSection);
+  assert.doesNotMatch(loginSection, /\n    ports:/);
+  assert.match(loginSection, /TIANGONG_LOGIN_USERNAME/);
+  assert.match(loginSection, /TIANGONG_LOGIN_PASSWORD_HASH/);
+
+  assert.match(loginGatewayTemplate, /auth_request \/_auth\/verify/);
+  assert.match(loginGatewayTemplate, /proxy_set_header Cookie \$http_cookie/);
+  assert.match(
+    loginGatewayTemplate,
+    /proxy_set_header X-Tiangong-Gateway-Token "\$\{TIANGONG_GATEWAY_TOKEN\}"/,
+  );
+  assert.match(loginGatewayTemplate, /location = \/login/);
+  const apiLocation = loginGatewayTemplate.match(
+    /location \^~ \/api\/ \{(?<section>[\s\S]*?)\n    \}/,
+  )?.groups?.section;
+  assert.ok(apiLocation);
+  assert.match(apiLocation, /auth_request \/_auth\/verify/);
+  assert.doesNotMatch(apiLocation, /error_page 401/);
 });
 
 test('派生镜像覆盖上游版本控制和旧 Compose 元数据', async () => {

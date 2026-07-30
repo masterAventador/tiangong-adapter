@@ -66,8 +66,8 @@ services:
       NGINX_ENVSUBST_FILTER: ^(OD_API_TOKEN|TIANGONG_GATEWAY_TOKEN)$
       OD_API_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
       TIANGONG_GATEWAY_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
-    ports:
-      - "127.0.0.1:${OPEN_DESIGN_PORT:-7456}:7457"
+    expose:
+      - "7457"
     read_only: true
     tmpfs:
       - /etc/nginx/conf.d
@@ -80,6 +80,58 @@ services:
     pids_limit: 32
     depends_on:
       - open-design
+
+  tiangong-login:
+    image: tiangong-login:local
+    build:
+      context: .
+      dockerfile: Dockerfile.login
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8081
+      TIANGONG_LOGIN_COOKIE_SECURE: ${TIANGONG_LOGIN_COOKIE_SECURE:-true}
+      TIANGONG_LOGIN_PASSWORD_HASH: ${TIANGONG_LOGIN_PASSWORD_HASH:?TIANGONG_LOGIN_PASSWORD_HASH is required}
+      TIANGONG_LOGIN_USERNAME: ${TIANGONG_LOGIN_USERNAME:?TIANGONG_LOGIN_USERNAME is required}
+    expose:
+      - "8081"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    pids_limit: 32
+
+  tiangong-login-gateway:
+    image: tiangong-login-gateway:local
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+      target: temporary-login-gateway
+      args:
+        NGINX_IMAGE: ${TIANGONG_NGINX_IMAGE:-docker.io/library/nginx@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de}
+    restart: unless-stopped
+    environment:
+      NGINX_ENVSUBST_FILTER: ^(TIANGONG_GATEWAY_TOKEN)$
+      TIANGONG_GATEWAY_TOKEN: ${OD_API_TOKEN:?OD_API_TOKEN is required}
+    ports:
+      - "127.0.0.1:${OPEN_DESIGN_PORT:-7456}:7458"
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    pids_limit: 32
+    depends_on:
+      tiangong-gateway:
+        condition: service_started
+      tiangong-login:
+        condition: service_healthy
 
   wan-image-adapter:
     image: tiangong-wan-image-adapter:local

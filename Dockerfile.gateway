@@ -3,5 +3,5 @@ ARG NGINX_IMAGE=docker.io/library/nginx@sha256:5616878291a2eed594aee8db4dade5878
 FROM ${NGINX_IMAGE} AS managed-gateway
 COPY gateway/nginx.conf.template /etc/nginx/templates/default.conf.template
 
-FROM ${NGINX_IMAGE} AS acceptance-login
-COPY e2e/nginx.conf.template /etc/nginx/templates/default.conf.template
+FROM ${NGINX_IMAGE} AS temporary-login-gateway
+COPY login/nginx.conf.template /etc/nginx/templates/default.conf.template

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "hash:login-password": "npm run build --silent && node dist/src/login-server.js --hash-password",
     "start": "node dist/src/server.js",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "test:e2e": "playwright test",

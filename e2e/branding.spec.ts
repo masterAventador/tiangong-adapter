@@ -1,7 +1,19 @@
 import { expect, request, test } from '@playwright/test';
 
 const DIRECT_GATEWAY_URL =
-  process.env.TIANGONG_E2E_DIRECT_GATEWAY_URL ?? 'http://127.0.0.1:7456';
+  process.env.TIANGONG_E2E_DIRECT_GATEWAY_URL ?? 'http://127.0.0.1:27456';
+const LOGIN_USERNAME =
+  process.env.TIANGONG_E2E_LOGIN_USERNAME ?? 'e2e@tiangong.invalid';
+const LOGIN_PASSWORD =
+  process.env.TIANGONG_E2E_LOGIN_PASSWORD ?? 'tiangong-e2e-password';
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('账号').fill(LOGIN_USERNAME);
+  await page.getByLabel('密码').fill(LOGIN_PASSWORD);
+  await page.getByRole('button', { name: '登录' }).click();
+  await expect(page).toHaveURL('/');
+});
 
 test('统一登录后的首页只展示天工品牌并保留 Qwen 与真实模型名称', async ({
   page,
