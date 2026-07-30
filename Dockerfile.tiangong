@@ -20,9 +20,6 @@ USER root
 COPY --from=bootstrap-build \
   /build/dist/src/branding.js \
   /opt/tiangong/branding.js
-COPY --from=bootstrap-build \
-  /build/node_modules/typescript \
-  /opt/tiangong/node_modules/typescript
 RUN node --max-old-space-size=1024 /opt/tiangong/branding.js \
       /app/apps/web/out \
       /app/apps/web/out \

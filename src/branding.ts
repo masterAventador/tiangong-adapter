@@ -8,7 +8,6 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import ts from 'typescript';
 
 const RUNTIME_DIRECTORY = '_tiangong';
 const RUNTIME_FILE = 'managed-branding.js';
@@ -20,28 +19,6 @@ const SOURCE_MAP_COMMENT_PATTERNS = [
   /\/\*[#@]\s*sourceMappingURL=.*?\*\//gs,
 ] as const;
 const JAVASCRIPT_EXTENSIONS = new Set(['.cjs', '.js', '.mjs']);
-const TEXT_EXTENSIONS = new Set([
-  '.css',
-  '.html',
-  '.json',
-  '.md',
-  '.svg',
-  '.txt',
-  '.webmanifest',
-  '.xml',
-]);
-const BRAND_REPLACEMENTS = [
-  ['由 Nexu Labs 出品', '由天工出品'],
-  ['Open Design Cloud', '天工云端'],
-  ['Open Design', '天工'],
-  ['Nexu Labs', '天工'],
-  ['HyperFrames', '动效视频'],
-  ['Claude Design', '传统设计工具'],
-  ['Remotion', '视频渲染引擎'],
-  ['Excalidraw', '白板引擎'],
-  ['HeyGen', '数字人服务'],
-  ['GSAP', '动效引擎'],
-] as const;
 
 export type BrandingConfig = {
   artifactRoots: string[];
@@ -52,17 +29,6 @@ export type BrandingReport = {
   filesChanged: number;
   sourceMapsRemoved: number;
   textReplacements: number;
-};
-
-type TextRewrite = {
-  replacements: number;
-  text: string;
-};
-
-type SourceEdit = {
-  end: number;
-  start: number;
-  text: string;
 };
 
 async function* filesUnder(root: string): AsyncGenerator<string> {
@@ -77,96 +43,12 @@ async function* filesUnder(root: string): AsyncGenerator<string> {
   }
 }
 
-function replaceAll(
-  source: string,
-  search: string,
-  replacement: string,
-): TextRewrite {
-  const occurrences = source.split(search).length - 1;
-  if (occurrences === 0) {
-    return { replacements: 0, text: source };
-  }
-  return {
-    replacements: occurrences,
-    text: source.replaceAll(search, replacement),
-  };
-}
-
-function rewriteVisibleText(source: string): TextRewrite {
-  let text = source;
-  let replacements = 0;
-  for (const [search, replacement] of BRAND_REPLACEMENTS) {
-    const rewritten = replaceAll(text, search, replacement);
-    text = rewritten.text;
-    replacements += rewritten.replacements;
-  }
-  return { replacements, text };
-}
-
-function isModuleSpecifier(node: ts.StringLiteralLike): boolean {
-  const parent = node.parent;
-  return (
-    (ts.isImportDeclaration(parent) && parent.moduleSpecifier === node)
-    || (ts.isExportDeclaration(parent) && parent.moduleSpecifier === node)
-    || (ts.isExternalModuleReference(parent) && parent.expression === node)
-  );
-}
-
-function isUrlOrPath(value: string): boolean {
-  return (
-    /^[a-z][a-z0-9+.-]*:\/\//i.test(value)
-    || value.startsWith('/')
-    || value.startsWith('./')
-    || value.startsWith('../')
-    || value.startsWith('@')
-  );
-}
-
 function stripSourceMapComments(source: string): string {
   let text = source;
   for (const pattern of SOURCE_MAP_COMMENT_PATTERNS) {
     text = text.replace(pattern, '');
   }
   return text;
-}
-
-function rewriteJavaScript(source: string, file: string): TextRewrite {
-  const sourceFile = ts.createSourceFile(
-    file,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.JS,
-  );
-  const edits: SourceEdit[] = [];
-  let replacements = 0;
-
-  const visit = (node: ts.Node): void => {
-    if (
-      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
-      && !isModuleSpecifier(node)
-      && !isUrlOrPath(node.text)
-    ) {
-      const rewritten = rewriteVisibleText(node.text);
-      if (rewritten.text !== node.text) {
-        edits.push({
-          start: node.getStart(sourceFile),
-          end: node.end,
-          text: JSON.stringify(rewritten.text),
-        });
-        replacements += rewritten.replacements;
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-
-  let text = source;
-  for (const edit of edits.sort((left, right) => right.start - left.start)) {
-    text = `${text.slice(0, edit.start)}${edit.text}${text.slice(edit.end)}`;
-  }
-  text = stripSourceMapComments(text);
-  return { replacements, text };
 }
 
 function injectRuntime(html: string): string {
@@ -478,23 +360,23 @@ export async function patchBrandingArtifacts(
       }
 
       const extension = path.extname(file).toLowerCase();
-      if (!JAVASCRIPT_EXTENSIONS.has(extension) && !TEXT_EXTENSIONS.has(extension)) {
+      if (!JAVASCRIPT_EXTENSIONS.has(extension) && extension !== '.html') {
         continue;
       }
 
       const current = await readFile(file, 'utf8');
-      const rewritten = JAVASCRIPT_EXTENSIONS.has(extension)
-        ? rewriteJavaScript(current, file)
-        : rewriteVisibleText(stripSourceMapComments(current));
-      const next = extension === '.html'
-        ? injectRuntime(rewritten.text)
-        : rewritten.text;
+      // Compiled artifacts contain both user-facing copy and programmatic
+      // component/enum keys. Rewriting their string literals can turn a valid
+      // React component lookup into `undefined`. Preserve program semantics
+      // and do visible white-labeling only in the DOM runtime below.
+      const next = JAVASCRIPT_EXTENSIONS.has(extension)
+        ? stripSourceMapComments(current)
+        : injectRuntime(current);
       if (next === current) {
         continue;
       }
       await writeFile(file, next, 'utf8');
       report.filesChanged += 1;
-      report.textReplacements += rewritten.replacements;
     }
   }
 

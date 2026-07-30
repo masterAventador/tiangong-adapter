@@ -42,6 +42,30 @@ test('统一登录后的首页只展示天工品牌并保留 Qwen 与真实模�
   );
 });
 
+test('登录后可以打开真实项目工作台', async ({ page }) => {
+  const projectId = crypto.randomUUID();
+  const response = await page.request.post('/api/projects', {
+    data: {
+      conversationMode: 'design',
+      designSystemId: null,
+      id: projectId,
+      metadata: { kind: 'prototype' },
+      name: '天工项目工作台验收',
+      pendingPrompt: null,
+      skillId: null,
+    },
+  });
+  expect(response.status()).toBe(200);
+
+  await page.goto(`/projects/${projectId}`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await expect(page.getByTestId('chat-composer')).toBeVisible();
+  await expect(page.getByTestId('chat-composer-input')).toBeVisible();
+  await expect(page.getByTestId('file-workspace')).toBeVisible();
+  await expect(page.getByText('This page couldn’t load')).toHaveCount(0);
+});
+
 test('设置入口不暴露上游社交账号和仓库链接', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   const settingsButton = page.getByRole('button', { name: '打开设置' });

@@ -39,7 +39,7 @@ async function allFiles(root: string): Promise<string[]> {
     .map((entry) => path.join(entry.parentPath, entry.name));
 }
 
-test('构建时替换用户可见品牌、删除源码映射并保留 Qwen 与真实模型名称', async () => {
+test('构建时保留程序字符串、删除源码映射并注入安全的运行时白标', async () => {
   await withTempArtifacts(async (_root, webRoot, daemonRoot) => {
     const chunkFile = path.join(
       webRoot,
@@ -92,12 +92,12 @@ test('构建时替换用户可见品牌、删除源码映射并保留 Qwen 与�
     });
 
     const html = await readFile(path.join(webRoot, 'index.html'), 'utf8');
-    assert.match(html, /<title>天工<\/title>/);
+    assert.match(html, /<title>Open Design<\/title>/);
     assert.match(html, /href="\/_tiangong\/brand\.svg"/);
-    assert.match(html, /<h1>天工<\/h1>/);
-    assert.match(html, /由天工出品/);
-    assert.match(html, /<button>动效视频<\/button>/);
-    assert.match(html, /视频渲染引擎 · 动效引擎 · 白板引擎 · 数字人服务/);
+    assert.match(html, /<h1>Open Design<\/h1>/);
+    assert.match(html, /由 Nexu Labs 出品/);
+    assert.match(html, /<button>HyperFrames<\/button>/);
+    assert.match(html, /Remotion · GSAP · Excalidraw · HeyGen/);
     assert.match(
       html,
       /<script defer src="\/_tiangong\/managed-branding\.js"><\/script>/,
@@ -107,10 +107,10 @@ test('构建时替换用户可见品牌、删除源码映射并保留 Qwen 与�
     assert.match(html, /wan2\.7-image/);
 
     const chunk = await readFile(chunkFile, 'utf8');
-    assert.match(chunk, /const brand = "天工"/);
-    assert.match(chunk, /const feature = "动效视频"/);
-    assert.match(chunk, /const vendor = "天工"/);
-    assert.match(chunk, /const competitor = "传统设计工具"/);
+    assert.match(chunk, /const brand = "Open Design"/);
+    assert.match(chunk, /const feature = "HyperFrames"/);
+    assert.match(chunk, /const vendor = "Nexu Labs"/);
+    assert.match(chunk, /const competitor = "Claude Design"/);
     assert.match(chunk, /const agent = "Qwen Code"/);
     assert.match(chunk, /const model = "qwen3-coder-plus"/);
     assert.match(chunk, /function isHyperFrames/);
@@ -124,7 +124,7 @@ test('构建时替换用户可见品牌、删除源码映射并保留 Qwen 与�
     ];
     assert.equal(files.some((file) => file.endsWith('.map')), false);
     assert.equal(report.sourceMapsRemoved, 2);
-    assert.ok(report.textReplacements >= 7);
+    assert.equal(report.textReplacements, 0);
 
     const runtime = await readFile(
       path.join(webRoot, '_tiangong', 'managed-branding.js'),
