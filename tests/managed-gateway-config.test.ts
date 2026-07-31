@@ -21,6 +21,44 @@ test('托管网关只接受统一登录的内部请求并由服务端注入 OD_A
   assert.match(template, /server_tokens off/);
 });
 
+test('远程托管模式禁用只能访问浏览器本机的 Powered Preview', async () => {
+  const [gatewayTemplate, productionNginx] = await Promise.all([
+    readFile(
+      path.join(REPOSITORY_ROOT, 'gateway', 'nginx.conf.template'),
+      'utf8',
+    ),
+    readFile(
+      path.join(
+        REPOSITORY_ROOT,
+        'deploy',
+        'nginx',
+        'tiangong.xuanbai.tech.conf',
+      ),
+      'utf8',
+    ),
+  ]);
+
+  const isolationLocation = gatewayTemplate.match(
+    /location = \/api\/preview\/isolation \{(?<section>[\s\S]*?)\n    \}/,
+  )?.groups?.section;
+  assert.ok(isolationLocation);
+  assert.match(isolationLocation, /\$tiangong_gateway_authorized/);
+  assert.match(isolationLocation, /Cache-Control "no-store"/);
+  assert.match(
+    isolationLocation,
+    /"supported":false,"baseOrigin":null,"pathPrefix":"powered"/,
+  );
+
+  assert.match(
+    productionNginx,
+    /add_header X-Frame-Options "SAMEORIGIN" always;/,
+  );
+  assert.doesNotMatch(
+    productionNginx,
+    /add_header X-Frame-Options "DENY" always;/,
+  );
+});
+
 test('Compose 不再把 Open Design 直接暴露给主机', async () => {
   const compose = await readFile(
     path.join(REPOSITORY_ROOT, 'compose.tiangong.yaml'),

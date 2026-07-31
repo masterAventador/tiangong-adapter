@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY Dockerfile.tiangong compose.tiangong.yaml README.md ./
+COPY deploy ./deploy
 COPY gateway ./gateway
 COPY login ./login
 COPY tsconfig.json ./

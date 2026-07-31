@@ -37,6 +37,15 @@ server {
         return 200 '{"ok":true,"service":"tiangong"}';
     }
 
+    location = /api/preview/isolation {
+        if ($tiangong_gateway_authorized = 0) {
+            return 401;
+        }
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"supported":false,"baseOrigin":null,"pathPrefix":"powered"}';
+    }
+
     location / {
         if ($tiangong_gateway_authorized = 0) {
             return 401;

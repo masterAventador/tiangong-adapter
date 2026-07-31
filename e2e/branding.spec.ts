@@ -6,6 +6,11 @@ const LOGIN_USERNAME =
   process.env.TIANGONG_E2E_LOGIN_USERNAME ?? 'e2e@tiangong.invalid';
 const LOGIN_PASSWORD =
   process.env.TIANGONG_E2E_LOGIN_PASSWORD ?? 'tiangong-e2e-password';
+const ACTIVE_ARTIFACT_PREVIEW_SELECTOR =
+  '[data-testid="artifact-preview-frame"]:visible, '
+  + '[data-testid="artifact-preview-frame-url-load"]:visible, '
+  + '[data-testid="artifact-preview-frame-srcdoc"]:visible, '
+  + '[data-testid="live-artifact-preview-frame"]:visible';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/login');
@@ -64,6 +69,100 @@ test('登录后可以打开真实项目工作台', async ({ page }) => {
   await expect(page.getByTestId('chat-composer-input')).toBeVisible();
   await expect(page.getByTestId('file-workspace')).toBeVisible();
   await expect(page.getByText('This page couldn’t load')).toHaveCount(0);
+});
+
+test('远程托管的 WebGL2 文件回退到同域预览且不请求 localhost', async ({
+  page,
+}) => {
+  const isolationResponse = await page.request.get('/api/preview/isolation');
+  expect(isolationResponse.status()).toBe(200);
+  expect(await isolationResponse.json()).toEqual({
+    baseOrigin: null,
+    pathPrefix: 'powered',
+    supported: false,
+  });
+
+  const projectId = crypto.randomUUID();
+  const projectResponse = await page.request.post('/api/projects', {
+    data: {
+      conversationMode: 'design',
+      designSystemId: null,
+      id: projectId,
+      metadata: { kind: 'prototype' },
+      name: '远程 WebGL2 预览验收',
+      pendingPrompt: null,
+      skillId: null,
+    },
+  });
+  expect(projectResponse.status()).toBe(200);
+  const { conversationId } = (await projectResponse.json()) as {
+    conversationId: string;
+  };
+
+  const fileName = 'remote-webgl2-preview.html';
+  const fileResponse = await page.request.post(
+    `/api/projects/${projectId}/files`,
+    {
+      data: {
+        artifactManifest: {
+          entry: fileName,
+          exports: ['html'],
+          kind: 'html',
+          renderer: 'html',
+          title: fileName,
+          version: 1,
+        },
+        content: [
+          '<!doctype html>',
+          '<html><body>',
+          '<h1>WebGL2 remote preview</h1>',
+          '<canvas id="surface"></canvas>',
+          '<script>',
+          "document.querySelector('#surface').getContext('webgl2');",
+          '</script>',
+          '</body></html>',
+        ].join(''),
+        name: fileName,
+      },
+    },
+  );
+  expect(fileResponse.status()).toBe(200);
+
+  const applicationOrigin = new URL(page.url()).origin;
+  const foreignLoopbackRequests: string[] = [];
+  const recordLocalhostRequest = (request: { url(): string }) => {
+    const url = new URL(request.url());
+    if (
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+      && url.origin !== applicationOrigin
+    ) {
+      foreignLoopbackRequests.push(url.href);
+    }
+  };
+  page.on('request', recordLocalhostRequest);
+  try {
+    await page.goto(
+      `/projects/${projectId}/conversations/${conversationId}/files/${fileName}`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    await expect(
+      page
+        .frameLocator(ACTIVE_ARTIFACT_PREVIEW_SELECTOR)
+        .getByRole('heading', { name: 'WebGL2 remote preview' }),
+    ).toBeVisible();
+
+    const previewFrame = page
+      .locator(ACTIVE_ARTIFACT_PREVIEW_SELECTOR)
+      .first();
+    const previewSource = await previewFrame.getAttribute('src');
+    expect(previewSource).toBeTruthy();
+    expect(new URL(previewSource ?? '', page.url()).origin).toBe(
+      applicationOrigin,
+    );
+    expect(foreignLoopbackRequests).toEqual([]);
+  } finally {
+    page.off('request', recordLocalhostRequest);
+  }
 });
 
 test('设置入口不暴露上游社交账号和仓库链接', async ({ page }) => {

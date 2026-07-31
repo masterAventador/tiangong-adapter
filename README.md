@@ -139,6 +139,13 @@ Open Design 的 `custom-image` 媒体能力调用内部适配器。
 `deploy/nginx/tiangong.xuanbai.tech.conf` 负责 TLS，并把公网请求转发到仅绑定
 回环地址的登录入口。不得绕过登录入口把公网请求直接转发到托管网关或 Open Design。
 
+Open Design 的 Powered Preview 只适用于浏览器和服务位于同一台机器的本地部署：
+它会让 iframe 访问浏览器自己的 `localhost`。天工托管网关会关闭这条本地专用路径，
+让自包含的 WebGL2 页面回退到同域预览；生产 Nginx 使用 `SAMEORIGIN` 允许工作台
+嵌入该预览，同时仍阻止第三方站点嵌套天工。这个回退不开放内部 `7456` 端口，也不
+修改 Open Design 上游源码。依赖外部 Worker、线程化 WASM 或
+`SharedArrayBuffer` 的页面若要完整运行，后续需要配置独立的 HTTPS 预览源。
+
 ### 登录和内部网关契约
 
 浏览器不能接触 `OD_API_TOKEN` 或内部网关令牌。用户提交账号密码后，登录服务只

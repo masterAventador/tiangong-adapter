@@ -8,6 +8,7 @@ COPY package.json package-lock.json tsconfig.json ./
 COPY Dockerfile.tiangong ./
 COPY compose.tiangong.yaml ./
 COPY README.md ./
+COPY deploy ./deploy
 COPY gateway ./gateway
 COPY login ./login
 COPY src ./src
